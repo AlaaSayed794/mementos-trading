@@ -250,7 +250,7 @@ client.on("messageCreate", async (msg) => {
 });
 
 // Register slash commands after ready
-client.once("ready", async () => {
+client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
   try {
     await rest.put(
