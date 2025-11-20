@@ -14,6 +14,7 @@ const config = {
   requestsChannelId: process.env.REQUESTS_CHANNEL_ID,
   duplicatesChannelId: process.env.DUPLICATES_CHANNEL_ID,
   autoMatchChannelId: process.env.MATCHES_CHANNEL_ID,
+  listManagementChannelId: process.env.LIST_MANAGEMENT_CHANNEL_ID,
 };
 
 const client = new Client({
@@ -75,13 +76,13 @@ function saveUsers() {
   fs.writeFileSync("./users.json", JSON.stringify(users, null, 2));
 }
 
-// Utility: parse numbers from command input
+// Parse numbers from input (space/comma separated)
 function parseNumbers(input) {
   return input
     .split(/[ ,]+/)
     .map((x) => parseInt(x))
     .filter((x) => !isNaN(x) && x >= 1 && x <= items.length)
-    .map((x) => x - 1);
+    .map((x) => x - 1); // convert to 0-index
 }
 
 // Add items to user list
@@ -126,6 +127,19 @@ function removeItems(user, type, indices) {
   return { removed, notFound };
 }
 
+// View user's lists (1-indexed)
+function viewLists(user) {
+  users[user.id] = users[user.id] || { requests: [], duplicates: [] };
+  const { requests, duplicates } = users[user.id];
+
+  const formatList = (arr) =>
+    arr.map((item, idx) => `${idx + 1}. ${item}`).join("\n") || "None";
+
+  return `**Your Requests:**\n${formatList(
+    requests
+  )}\n\n**Your Duplicates:**\n${formatList(duplicates)}`;
+}
+
 // Two-way matching
 function findMatches() {
   const results = [];
@@ -153,7 +167,7 @@ function findMatches() {
   return results;
 }
 
-// Trigger matches for a user
+// Trigger matches
 async function triggerMatches(userId) {
   const matches = findMatches();
   if (matches.length === 0) return;
@@ -194,17 +208,8 @@ const commands = [
   new SlashCommandBuilder()
     .setName("addrequest")
     .setDescription("Add items to your requests")
-    .addStringOption((option) =>
-      option
-        .setName("items")
-        .setDescription("Numbers separated by space or comma")
-        .setRequired(true)
-    ),
-  new SlashCommandBuilder()
-    .setName("removerequest")
-    .setDescription("Remove items from your requests")
-    .addStringOption((option) =>
-      option
+    .addStringOption((opt) =>
+      opt
         .setName("items")
         .setDescription("Numbers separated by space or comma")
         .setRequired(true)
@@ -212,8 +217,17 @@ const commands = [
   new SlashCommandBuilder()
     .setName("addduplicate")
     .setDescription("Add items to your duplicates")
-    .addStringOption((option) =>
-      option
+    .addStringOption((opt) =>
+      opt
+        .setName("items")
+        .setDescription("Numbers separated by space or comma")
+        .setRequired(true)
+    ),
+  new SlashCommandBuilder()
+    .setName("removerequest")
+    .setDescription("Remove items from your requests")
+    .addStringOption((opt) =>
+      opt
         .setName("items")
         .setDescription("Numbers separated by space or comma")
         .setRequired(true)
@@ -221,17 +235,20 @@ const commands = [
   new SlashCommandBuilder()
     .setName("removeduplicate")
     .setDescription("Remove items from your duplicates")
-    .addStringOption((option) =>
-      option
+    .addStringOption((opt) =>
+      opt
         .setName("items")
         .setDescription("Numbers separated by space or comma")
         .setRequired(true)
     ),
+  new SlashCommandBuilder()
+    .setName("viewmylists")
+    .setDescription("View your requests and duplicates"),
 ].map((cmd) => cmd.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(config.token);
 
-// Enforce slash commands only
+// Enforce slash commands only in requests/duplicates channels
 client.on("messageCreate", async (msg) => {
   if (msg.author.bot) return;
 
@@ -249,7 +266,7 @@ client.on("messageCreate", async (msg) => {
   }
 });
 
-// Register slash commands after ready
+// Register commands after ready
 client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
   try {
@@ -269,24 +286,12 @@ client.on("interactionCreate", async (interaction) => {
   const user = interaction.user;
   const cmd = interaction.commandName;
   const raw = interaction.options.getString("items");
-  const indices = parseNumbers(raw);
+  const indices = raw ? parseNumbers(raw) : [];
 
-  if (indices.length === 0) {
-    return interaction.reply({
-      content: "❌ No valid item numbers provided.",
-      ephemeral: true,
-    });
-  }
-
-  let type = "";
-  let allowedChannel = null;
+  let type, allowedChannel;
 
   switch (cmd) {
     case "addrequest":
-      type = "requests";
-      allowedChannel = config.requestsChannelId;
-      break;
-    case "removerequest":
       type = "requests";
       allowedChannel = config.requestsChannelId;
       break;
@@ -294,31 +299,52 @@ client.on("interactionCreate", async (interaction) => {
       type = "duplicates";
       allowedChannel = config.duplicatesChannelId;
       break;
+    case "removerequest":
+      type = "requests";
+      allowedChannel = config.listManagementChannelId;
+      break;
     case "removeduplicate":
       type = "duplicates";
-      allowedChannel = config.duplicatesChannelId;
+      allowedChannel = config.listManagementChannelId;
       break;
+    case "viewmylists":
+      if (interaction.channel.id !== config.listManagementChannelId) {
+        return interaction.reply({
+          content: `❌ This command can only be used in the list-management channel.`,
+          ephemeral: true,
+        });
+      }
+      return interaction.reply({ content: viewLists(user), ephemeral: true });
     default:
       return;
   }
 
   if (interaction.channel.id !== allowedChannel) {
     return interaction.reply({
-      content: `❌ This command can only be used in the designated channel.`,
+      content: `❌ This command cannot be used in this channel.`,
       ephemeral: true,
     });
   }
 
-  let result;
   if (cmd.startsWith("add")) {
-    result = addItems(user, type, indices);
+    if (indices.length === 0)
+      return interaction.reply({
+        content: "❌ No valid item numbers provided.",
+        ephemeral: true,
+      });
+    const result = addItems(user, type, indices);
     let reply = "";
     if (result.added.length) reply += `✅ Added: ${result.added.join(", ")}\n`;
     if (result.already.length)
       reply += `ℹ Already in list: ${result.already.join(", ")}`;
     interaction.reply({ content: reply, ephemeral: true });
   } else if (cmd.startsWith("remove")) {
-    result = removeItems(user, type, indices);
+    if (indices.length === 0)
+      return interaction.reply({
+        content: "❌ No valid item numbers provided.",
+        ephemeral: true,
+      });
+    const result = removeItems(user, type, indices);
     let reply = "";
     if (result.removed.length)
       reply += `✅ Removed: ${result.removed.join(", ")}\n`;
@@ -327,6 +353,7 @@ client.on("interactionCreate", async (interaction) => {
     interaction.reply({ content: reply, ephemeral: true });
   }
 
+  // Check for matches after add/remove
   triggerMatches(user.id);
 });
 
