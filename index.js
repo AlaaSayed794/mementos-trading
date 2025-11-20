@@ -127,13 +127,18 @@ function removeItems(user, type, indices) {
   return { removed, notFound };
 }
 
-// View user's lists (1-indexed)
+// View user's lists with original item numbers
 function viewLists(user) {
   users[user.id] = users[user.id] || { requests: [], duplicates: [] };
   const { requests, duplicates } = users[user.id];
 
   const formatList = (arr) =>
-    arr.map((item, idx) => `${idx + 1}. ${item}`).join("\n") || "None";
+    arr
+      .map((item) => {
+        const idx = items.indexOf(item);
+        return idx !== -1 ? `${idx + 1}. ${item}` : item;
+      })
+      .join("\n") || "None";
 
   return `**Your Requests:**\n${formatList(
     requests
