@@ -248,21 +248,30 @@ const commands = [
 
 const rest = new REST({ version: "10" }).setToken(config.token);
 
-// Enforce slash commands only in requests/duplicates channels
+// Enforce slash commands only in requests/duplicates channels (except for owner)
 client.on("messageCreate", async (msg) => {
   if (msg.author.bot) return;
 
-  if (
-    [config.requestsChannelId, config.duplicatesChannelId].includes(
-      msg.channel.id
-    )
-  ) {
-    if (!msg.content.startsWith("/")) {
-      await msg.delete().catch(() => {});
-      msg.author
-        .send(`❌ Please only use slash commands in #${msg.channel.name}`)
-        .catch(() => {});
-    }
+  const allowedChannels = [
+    config.requestsChannelId,
+    config.duplicatesChannelId,
+  ];
+
+  // Only enforce in specific channels
+  if (!allowedChannels.includes(msg.channel.id)) return;
+
+  // Allow server owner to post anything
+  const guild = msg.guild;
+  const ownerId = guild?.ownerId;
+
+  if (msg.author.id === ownerId) return;
+
+  // Everyone else must ONLY use slash commands
+  if (!msg.content.startsWith("/")) {
+    await msg.delete().catch(() => {});
+    msg.author
+      .send(`❌ You can only use **slash commands** in #${msg.channel.name}.`)
+      .catch(() => {});
   }
 });
 
