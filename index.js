@@ -6,6 +6,8 @@ const {
   Routes,
   SlashCommandBuilder,
 } = require("discord.js");
+
+// Config from environment variables
 const config = {
   token: process.env.DISCORD_TOKEN,
   guildId: process.env.GUILD_ID,
@@ -13,6 +15,7 @@ const config = {
   duplicatesChannelId: process.env.DUPLICATES_CHANNEL_ID,
   autoMatchChannelId: process.env.MATCHES_CHANNEL_ID,
 };
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -22,7 +25,7 @@ const client = new Client({
   ],
 });
 
-// Items list in order
+// Items list
 const items = [
   "BATCAVE ACCESS CARD",
   "RA'S AL GHUL'S LAZARUS PIT",
@@ -68,21 +71,20 @@ let users = {};
 if (fs.existsSync("./users.json")) {
   users = JSON.parse(fs.readFileSync("./users.json"));
 }
-
 function saveUsers() {
   fs.writeFileSync("./users.json", JSON.stringify(users, null, 2));
 }
 
-// Utility to parse number lists from commands
+// Utility: parse numbers from command input
 function parseNumbers(input) {
   return input
-    .split(/[ ,]+/) // split by space or comma
+    .split(/[ ,]+/)
     .map((x) => parseInt(x))
     .filter((x) => !isNaN(x) && x >= 1 && x <= items.length)
-    .map((x) => x - 1); // convert to 0-index
+    .map((x) => x - 1);
 }
 
-// Add items to user's list
+// Add items to user list
 function addItems(user, type, indices) {
   users[user.id] = users[user.id] || { requests: [], duplicates: [] };
   const list = users[user.id][type];
@@ -103,7 +105,7 @@ function addItems(user, type, indices) {
   return { added, already };
 }
 
-// Remove items from user's list
+// Remove items from user list
 function removeItems(user, type, indices) {
   users[user.id] = users[user.id] || { requests: [], duplicates: [] };
   const list = users[user.id][type];
@@ -124,7 +126,7 @@ function removeItems(user, type, indices) {
   return { removed, notFound };
 }
 
-// Matching logic
+// Two-way matching
 function findMatches() {
   const results = [];
   const userIds = Object.keys(users);
@@ -187,7 +189,7 @@ async function triggerMatches(userId) {
   }
 }
 
-// Register slash commands
+// Slash commands
 const commands = [
   new SlashCommandBuilder()
     .setName("addrequest")
@@ -195,7 +197,7 @@ const commands = [
     .addStringOption((option) =>
       option
         .setName("items")
-        .setDescription("Numbers of items separated by space or comma")
+        .setDescription("Numbers separated by space or comma")
         .setRequired(true)
     ),
   new SlashCommandBuilder()
@@ -204,7 +206,7 @@ const commands = [
     .addStringOption((option) =>
       option
         .setName("items")
-        .setDescription("Numbers of items separated by space or comma")
+        .setDescription("Numbers separated by space or comma")
         .setRequired(true)
     ),
   new SlashCommandBuilder()
@@ -213,7 +215,7 @@ const commands = [
     .addStringOption((option) =>
       option
         .setName("items")
-        .setDescription("Numbers of items separated by space or comma")
+        .setDescription("Numbers separated by space or comma")
         .setRequired(true)
     ),
   new SlashCommandBuilder()
@@ -222,30 +224,34 @@ const commands = [
     .addStringOption((option) =>
       option
         .setName("items")
-        .setDescription("Numbers of items separated by space or comma")
+        .setDescription("Numbers separated by space or comma")
         .setRequired(true)
     ),
 ].map((cmd) => cmd.toJSON());
 
-// Deploy commands
 const rest = new REST({ version: "10" }).setToken(config.token);
 
-(async () => {
-  try {
-    console.log("Refreshing slash commands...");
-    await rest.put(
-      Routes.applicationGuildCommands(client.user?.id || "0", config.guildId),
-      { body: commands }
-    );
-    console.log("Slash commands registered.");
-  } catch (err) {
-    console.error(err);
-  }
-})();
+// Enforce slash commands only
+client.on("messageCreate", async (msg) => {
+  if (msg.author.bot) return;
 
-client.on("ready", async () => {
+  if (
+    [config.requestsChannelId, config.duplicatesChannelId].includes(
+      msg.channel.id
+    )
+  ) {
+    if (!msg.content.startsWith("/")) {
+      await msg.delete().catch(() => {});
+      msg.author
+        .send(`❌ Please only use slash commands in #${msg.channel.name}`)
+        .catch(() => {});
+    }
+  }
+});
+
+// Register slash commands after ready
+client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
-  // Register slash commands when ready
   try {
     await rest.put(
       Routes.applicationGuildCommands(client.user.id, config.guildId),
@@ -253,7 +259,7 @@ client.on("ready", async () => {
     );
     console.log("Slash commands registered.");
   } catch (err) {
-    console.error(err);
+    console.error("Error registering commands:", err);
   }
 });
 
