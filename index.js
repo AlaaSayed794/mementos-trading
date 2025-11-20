@@ -6,8 +6,13 @@ const {
   Routes,
   SlashCommandBuilder,
 } = require("discord.js");
-const config = require("./config.json");
-
+const config = {
+  token: process.env.DISCORD_TOKEN,
+  guildId: process.env.GUILD_ID,
+  requestsChannelId: process.env.REQUESTS_CHANNEL_ID,
+  duplicatesChannelId: process.env.DUPLICATES_CHANNEL_ID,
+  autoMatchChannelId: process.env.MATCHES_CHANNEL_ID,
+};
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
