@@ -1,7 +1,7 @@
 {
   "name": "trading-bot",
   "version": "1.0.0",
-  "description": "Simple Discord trading bot (JSON storage, no DB)",
+  "description": "Discord trading bot with PostgreSQL persistence",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -11,6 +11,6 @@
   },
   "dependencies": {
     "discord.js": "^14.11.0",
-    "fs-extra": "^11.1.1"
+    "pg": "^8.10.0"
   }
 }
