@@ -126,7 +126,7 @@ const commands = [
 const rest = new REST({ version: "10" }).setToken(config.token);
 
 // Register commands after ready
-client.once("clieantReady", async () => {
+client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
   try {
     await rest.put(
