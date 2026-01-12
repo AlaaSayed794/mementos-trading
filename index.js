@@ -1,3 +1,4 @@
+require("dotenv").config();
 const {
   Client,
   GatewayIntentBits,
@@ -15,7 +16,7 @@ const config = {
   listManagementChannelId: process.env.LIST_MANAGEMENT_CHANNEL_ID,
   serverOwnerId: process.env.SERVER_OWNER_ID, // optional override
 };
-
+console.log(config);
 // Items master list (final list you provided)
 const items = [
   "BATCAVE ACCESS CARD",
